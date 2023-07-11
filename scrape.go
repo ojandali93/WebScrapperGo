@@ -1,30 +1,62 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/gocolly/colly"
 )
 
-// main() contains code adapted from example found in Colly's docs:
-// http://go-colly.org/docs/examples/basic/
+// Job struct to hold job data
+type Job struct {
+	Position string `json:"position"`
+	Company  string `json:"company"`
+}
+
 func main() {
-	// Instantiate default collector
 	c := colly.NewCollector()
 
-	// On every a element which has href attribute call callback
-	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
-                link := e.Attr("href")
+	var jobs []Job
 
-		// Print link
-                fmt.Printf("Link found: %q -> %s\n", e.Text, link)
+	c.OnHTML(".result-card", func(e *colly.HTMLElement) {
+		position := e.ChildText(".result-card__title")
+		company := e.ChildText(".result-card__subtitle")
+
+		job := Job{
+			Position: position,
+			Company:  company,
+		}
+
+		jobs = append(jobs, job)
 	})
 
-	// Before making a request print "Visiting ..."
 	c.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL.String())
 	})
 
-	// Start scraping on https://hackerspaces.org
-	c.Visit("https://hackerspaces.org/")
+	c.Visit("https://www.linkedin.com/jobs/search/?currentJobId=3638868938&keywords=software%20engineer&refresh=true")
+
+	file, err := os.Create("output.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(jobs)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Scraping complete. Results saved to output.json.")
+
+	// Display the scraped jobs
+	fmt.Println("Scraped Jobs:")
+	for _, job := range jobs {
+		fmt.Printf("Position: %s\n", job.Position)
+		fmt.Printf("Company: %s\n\n", job.Company)
+	}
 }
